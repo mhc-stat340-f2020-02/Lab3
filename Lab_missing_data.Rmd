@@ -1,0 +1,166 @@
+---
+title: 'Lab: Missing Data'
+subtitle: 'STAT 340: Applied Regression'
+output: pdf_document
+---
+
+Thus far, we have looked at missing data examples for relatively small data sets. While these may be instructive, it is likely that you will be faced with more complex data sets with missing values. In this lab, you will explore *multiple imputation* in the context of a sample from the American National Election Studies (ANES 2012) survey, which is a national survey of voters in the United States, run before and after each presidential election, formally starting in the late 1970s.   
+
+## American National Election Survey 2012 (ANES)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(mice)
+library(foreign)
+library(car)
+
+## YOU WILL NEED TO UNCOMMENT ONE OF THESE LINES AND READ IN THE APPROPRIATE DOWNLOADED FILE. 
+## ANY OF THESE WILL WORK - YOU DO NOT NEED TO USE ALL THREE.
+## Import ANES dataset (dta)
+# anesimp <- read.dta("",
+#                     convert.factors=FALSE, missing.type=TRUE)
+## Import ANES dataset (csv)
+# anesimp <- read.csv("")
+
+## Import ANES dataset (RData)
+# load("")
+
+## Import occupation information
+anesocc <- read.csv("G:/My Drive/Teaching/STAT 340/Datasets/anesocc.csv",
+                    sep=";", na.strings=c("","NA"))
+## Import M&A data
+maimp <- read.csv("https://raw.githubusercontent.com/marievozanne/marievozanne.github.io/master/stat340_f2020/data/maimp.csv")
+
+## All values <0 are considered to be missing -- recode as NA
+for (i in 1:ncol(anesimp)){
+  anesimp[,i] <- ifelse(anesimp[,i]<0, NA, anesimp[,i])
+}
+
+## Add occupation variables to dataset
+anesocc2 <- anesocc %>%
+  dplyr::select(caseid, dem_occnow, dem_indnow)
+
+## Matching text - "manu" as respondent working in manufacturing; exclude manuver
+anesocc2 <- anesocc2 %>% 
+  mutate(manuf = case_when((grepl("manu",dem_occnow)&!grepl("manuver",dem_occnow)) ~ 1,
+                           grepl("manu",anesocc2$dem_indnow) ~ 1,
+                           is.na(dem_occnow) ~ NA_real_,
+                           is.na(dem_indnow) ~ NA_real_,
+                           !is.na(dem_occnow) ~ 0,
+                           !is.na(dem_indnow) ~ 0)
+  )
+
+## Logical to only select manufacturing jobs
+anesocc2 <- anesocc2 %>% 
+  dplyr::select(manuf)
+
+## Combine columns since the order is consistent
+anesimp <- cbind(anesimp,anesocc2)
+
+anesimp <- merge(x=anesimp, y=maimp, by=c("sample_state"))
+
+## Recode variables 
+anesimp$patriot_amident <- recode(anesimp$patriot_amident, 
+                                  "5=0; 4=1; 3=2; 2=3; 1=4")
+
+anesimp$econ_ecnext_x <- recode(anesimp$econ_ecnext_x, 
+                                "1=0; 2=1; 3=2; 4=3; 5=4")
+
+anesimp$pid_x <- recode(anesimp$pid_x, 
+                        "1=0; 2=1; 3=2; 4=3; 5=4; 6=5; 7=6")
+
+anesimp$dem_edugroup_x <- recode(anesimp$dem_edugroup_x, 
+                                 "1=0; 2=1; 3=2; 4=3; 5=4")
+
+## Treat manuf as a factor 
+anesimp$manuf <- as.factor(anesimp$manuf)
+
+
+## Save the dataframe as another object so that we can use the original dataframe
+## for multiple imputation
+anesimpor <- anesimp 
+
+## Transform variables for regression
+# Treat nationalism as continuous
+anesimpor$patriot_amident <- as.numeric(anesimpor$patriot_amident)
+# Treat party id as continuous 
+anesimpor$pid_x <- as.numeric(anesimpor$pid_x)
+# Treat china_econ as dichotomous 
+anesimpor$china_econ <- recode(anesimpor$china_econ, "1=0; 3=0; 2=1")
+anesimpor$china_econ <- as.factor(anesimpor$china_econ)
+
+## Take the log of Chinese M&A variables - add a small number as variable
+## contains 0s
+anesimpor$LogMANO <- log(anesimpor$MANo+1.01)
+```
+
+Variables of interest:
+
+- `ft_hclinton`: sentiment towards Hillary Clinton - ANES Feeling Thermometer question on Hillary Clinton
+- `manuf`: occupation - dichotomous variables, 1 of participant works in manufacturing and 0 otherwise
+- `pid_x`: Party ID - continuous index ranging from 0 (strong Democrat) to 6 (strong Republican)
+- `patriot_amident`: nationalism - continuous index ranging from 0 (not at all important) to 5 (extremely important)
+- `china_econ`: views on China's economic rise - dichotomous variable where 0 is Good/No Effect and 1 is Bad
+- `LogMANO`: log Chinese M&A activity thermometer 2000-2012; original scale is continuous from 0 to 60
+
+### Run an analysis with the ANES dataset (`anesimpor`) using a complete-case analysis. Specifically, run a multiple linear regression model to investigate the effects of occupation, party id, nationalism, views on China's economic rise and the number of Chinese Mergers and Acquisitions (M`&`A) activity from 2000-2012 in a respondent's state on the sentiment towards Hillary Clinton, who served as Secretary of State under President Obama from 2009-2013.
+
+
+```{r}
+
+```
+
+
+### Based on the summary from the model you just fit, what proportion of the observations are missing? What percentage of the observations were included in your analysis?
+
+
+
+
+### Using one of the approaches from the notes from our introduction to missing data, explore the pattern of missingness. It is sufficient for this lab to only focus on the variables of interest, as listed above. To this end, it will be useful to make a dataframe that only includes those 6 variables (a subset of `anesimp2`).
+
+```{r}
+
+```
+
+
+
+
+### Using the mice package, perform (conditional mean) multiple imputation (with 5 iterations) to impute the missing values in your dataset with 6 variables. Note that this approach assumes that the missing data are missing at random (MAR).
+
+```{r}
+
+```
+
+
+
+### Fit the same multiple linear regression model as you did above, but this time using the imputed data.
+
+```{r}
+
+```
+
+
+
+### Use the pool function to arrive at a final model based on the imputed data.
+
+```{r}
+
+```
+
+
+
+### Compare the coefficient estimates and corresponding confidence intervals/p-values from your complete-case analysis and your multiple imputation analysis. What are the similarities? What are the differences?
+
+
+
+
+### Based on the multiple imputation analysis, interpret the 95\% confidence intervals for the effects of Party ID and nationalism on sentiment towards Hillary Clinton in the context of the problem. 
+
+
+
+
+## References
+
+"Getting Started with Multiple Imputation." University of Virginia StatLab Articles. https://uvastatlab.github.io/2019/05/01/getting-started-with-multiple-imputation-in-r/ 
